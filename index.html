@@ -407,11 +407,9 @@
         <div class="empty-state">No one has signed up yet</div>
       </div>
 
-      <div class="team-count-row">
-        <label class="field-label" for="team-count" style="margin:0;">Teams</label>
-        <input type="number" id="team-count" value="2" min="2" max="10">
-        <span id="team-size-hint"></span>
-      </div>
+      <label class="field-label">Which rooms are we playing today?</label>
+      <div class="skills-grid" id="active-rooms-grid"></div>
+      <p id="room-warning" style="color:#f87171; font-size:0.85rem; margin-top:10px; display:none;"></p>
 
       <div class="btn-row">
         <button class="btn btn-primary" id="generate-btn" disabled>Generate teams</button>
@@ -483,6 +481,7 @@
     async function init() {
       renderSkills();
       renderRooms();
+      renderActiveRooms();
       bindEvents();
       await loadParticipants();
     }
@@ -523,20 +522,18 @@
     function renderParticipants() {
       const list = document.getElementById('participants-list');
       const badge = document.getElementById('count-badge');
-      const genBtn = document.getElementById('generate-btn');
       const clearBtn = document.getElementById('clear-btn');
 
       badge.textContent = participants.length;
 
       if (participants.length === 0) {
         list.innerHTML = '<div class="empty-state">No one has signed up yet</div>';
-        genBtn.disabled = true;
         clearBtn.style.display = 'none';
+        updateGenerateBtn();
         return;
       }
 
       clearBtn.style.display = '';
-      genBtn.disabled = participants.length < 2;
 
       list.innerHTML = participants.map((p) => `
         <div class="participant-row">
@@ -557,22 +554,24 @@
         </div>
       `).join('');
 
-      updateTeamHint();
+      updateGenerateBtn();
     }
 
-    function updateTeamHint() {
-      const n = participants.length;
-      const t = parseInt(document.getElementById('team-count').value) || 2;
-      const hint = document.getElementById('team-size-hint');
-      if (n > 0) {
-        const base = Math.floor(n / t);
-        const extra = n % t;
-        hint.textContent = extra === 0
-          ? `(${base} per team)`
-          : `(${base}–${base + 1} per team)`;
-      } else {
-        hint.textContent = '';
-      }
+    let activeRooms = new Set();
+
+    function renderActiveRooms() {
+      const grid = document.getElementById('active-rooms-grid');
+      grid.innerHTML = ROOMS.map(r => `
+        <div class="skill-chip" data-active-room="${r.id}">
+          <span class="icon">${r.icon}</span>
+          <span class="label">${r.label}</span>
+        </div>
+      `).join('');
+    }
+
+    function updateGenerateBtn() {
+      const genBtn = document.getElementById('generate-btn');
+      genBtn.disabled = participants.length < 2 || activeRooms.size === 0;
     }
 
     // --- Events ---
@@ -608,6 +607,21 @@
         }
       });
 
+      document.getElementById('active-rooms-grid').addEventListener('click', e => {
+        const chip = e.target.closest('.skill-chip');
+        if (!chip) return;
+        const rid = chip.dataset.activeRoom;
+        if (activeRooms.has(rid)) {
+          activeRooms.delete(rid);
+          chip.classList.remove('selected', 'room-chip');
+        } else {
+          activeRooms.add(rid);
+          chip.classList.add('selected', 'room-chip');
+        }
+        updateGenerateBtn();
+        hideTeams();
+      });
+
       nameInput.addEventListener('input', updateAddBtn);
       nameInput.addEventListener('keydown', e => {
         if (e.key === 'Enter' && !addBtn.disabled) addParticipant();
@@ -634,7 +648,6 @@
       document.getElementById('clear-btn').addEventListener('click', async () => {
         if (confirm('Remove all participants?')) {
           try {
-            // Delete all rows
             await supaFetch('participants?id=not.is.null', { method: 'DELETE' });
             participants = [];
             renderParticipants();
@@ -643,11 +656,6 @@
             console.error('Failed to clear:', e);
           }
         }
-      });
-
-      document.getElementById('team-count').addEventListener('input', () => {
-        updateTeamHint();
-        hideTeams();
       });
     }
 
@@ -683,51 +691,74 @@
       nameInput.value = '';
       selectedSkills.clear();
       selectedRooms.clear();
-      document.querySelectorAll('.skill-chip.selected').forEach(c => c.classList.remove('selected', 'room-chip'));
+      document.querySelectorAll('#skills-grid .skill-chip.selected, #rooms-grid .skill-chip.selected').forEach(c => c.classList.remove('selected', 'room-chip'));
       addBtn.textContent = 'Add me';
       updateAddBtn();
       nameInput.focus();
 
       renderParticipants();
+      updateGenerateBtn();
       hideTeams();
     }
 
     // --- Team generation ---
     function generateTeams() {
-      const numTeams = Math.max(2, Math.min(10, parseInt(document.getElementById('team-count').value) || 2));
+      const roomList = [...activeRooms];
+      const numTeams = roomList.length;
+      const warning = document.getElementById('room-warning');
+      warning.style.display = 'none';
+
+      // For each room, figure out who CAN'T go (they've done it before)
+      // teams[i] is assigned to roomList[i]
       const teams = Array.from({ length: numTeams }, () => []);
-
-      // Shuffle participants
-      const shuffled = [...participants].sort(() => Math.random() - 0.5);
-
-      // Sort by most skills first (greedy balancing)
-      shuffled.sort((a, b) => b.skills.length - a.skills.length);
-
-      // Track skill counts and room experience per team
       const teamSkills = Array.from({ length: numTeams }, () => ({}));
-      const teamRooms = Array.from({ length: numTeams }, () => ({}));
+
+      // Shuffle for randomness
+      const shuffled = [...participants].sort(() => Math.random() - 0.5);
+      // Sort by most visited rooms first (hardest to place)
+      shuffled.sort((a, b) => (b.visitedRooms || []).length - (a.visitedRooms || []).length);
+
+      const placed = new Set();
+      const conflicts = [];
 
       for (const person of shuffled) {
-        let bestTeam = 0;
+        const visited = new Set(person.visitedRooms || []);
+
+        // Find eligible rooms (not visited before)
+        const eligible = [];
+        for (let t = 0; t < numTeams; t++) {
+          if (!visited.has(roomList[t])) {
+            eligible.push(t);
+          }
+        }
+
+        if (eligible.length === 0) {
+          // This person has done ALL selected rooms — place in smallest team with a warning
+          conflicts.push(person.name);
+          let smallest = 0;
+          for (let t = 1; t < numTeams; t++) {
+            if (teams[t].length < teams[smallest].length) smallest = t;
+          }
+          teams[smallest].push(person);
+          placed.add(person.id);
+          for (const s of person.skills) {
+            teamSkills[smallest][s] = (teamSkills[smallest][s] || 0) + 1;
+          }
+          continue;
+        }
+
+        // Among eligible rooms, pick the best one (balance skills + team size)
+        let bestTeam = eligible[0];
         let bestScore = -Infinity;
 
-        for (let t = 0; t < numTeams; t++) {
+        for (const t of eligible) {
           const sizePenalty = teams[t].length * 3;
-
           let skillBonus = 0;
           for (const s of person.skills) {
             if (!teamSkills[t][s]) skillBonus += 2;
             else skillBonus -= 0.5;
           }
-
-          // Bonus for room experience this team lacks
-          let roomBonus = 0;
-          for (const r of (person.visitedRooms || [])) {
-            if (!teamRooms[t][r]) roomBonus += 3;
-            else roomBonus -= 0.5;
-          }
-
-          const score = skillBonus + roomBonus - sizePenalty;
+          const score = skillBonus - sizePenalty;
           if (score > bestScore) {
             bestScore = score;
             bestTeam = t;
@@ -735,18 +766,21 @@
         }
 
         teams[bestTeam].push(person);
+        placed.add(person.id);
         for (const s of person.skills) {
           teamSkills[bestTeam][s] = (teamSkills[bestTeam][s] || 0) + 1;
         }
-        for (const r of (person.visitedRooms || [])) {
-          teamRooms[bestTeam][r] = (teamRooms[bestTeam][r] || 0) + 1;
-        }
       }
 
-      renderTeams(teams, teamSkills, teamRooms);
+      if (conflicts.length > 0) {
+        warning.textContent = `${conflicts.join(', ')} ha${conflicts.length === 1 ? 'r' : 'r'} gjort alle valgte rom — plassert i minste lag.`;
+        warning.style.display = '';
+      }
+
+      renderTeams(teams, teamSkills, roomList);
     }
 
-    function renderTeams(teams, teamSkills, teamRooms) {
+    function renderTeams(teams, teamSkills, roomList) {
       const card = document.getElementById('teams-card');
       const grid = document.getElementById('teams-grid');
 
@@ -755,42 +789,35 @@
 
       grid.innerHTML = teams.map((team, i) => {
         const color = TEAM_COLORS[i % TEAM_COLORS.length];
+        const room = ROOMS.find(r => r.id === roomList[i]);
         const allSkills = new Set();
         team.forEach(p => p.skills.forEach(s => allSkills.add(s)));
-        const allRooms = new Set();
-        team.forEach(p => (p.visitedRooms || []).forEach(r => allRooms.add(r)));
 
         return `
           <div class="team-card" style="border-color: ${color}33;">
             <div class="team-header" style="background: ${color}15; color: ${color};">
-              Team ${i + 1} <span style="font-weight:400; font-size:0.85rem; opacity:0.7;">(${team.length})</span>
+              ${room.icon} ${room.label} <span style="font-weight:400; font-size:0.85rem; opacity:0.7;">(${team.length} players)</span>
             </div>
             <div class="team-members">
-              ${team.map(p => `
+              ${team.map(p => {
+                const hasConflict = (p.visitedRooms || []).includes(roomList[i]);
+                return `
                 <div class="team-member">
-                  <div class="name">${esc(p.name)}</div>
+                  <div class="name">${esc(p.name)}${hasConflict ? ' <span style="color:#f87171; font-size:0.8rem;">has done this room</span>' : ''}</div>
                   <div class="skills-tags">
                     ${p.skills.map(sid => {
                       const s = SKILLS.find(sk => sk.id === sid);
                       return s ? `<span class="tag">${s.icon} ${s.label}</span>` : '';
                     }).join('')}
-                    ${(p.visitedRooms || []).map(rid => {
-                      const r = ROOMS.find(rm => rm.id === rid);
-                      return r ? `<span class="tag room-tag">${r.icon} ${r.label}</span>` : '';
-                    }).join('')}
                   </div>
                 </div>
-              `).join('')}
+              `}).join('')}
               ${team.length === 0 ? '<div class="empty-state" style="padding:16px 0;">Empty</div>' : ''}
             </div>
             <div class="team-skill-summary">
               ${[...allSkills].map(sid => {
                 const s = SKILLS.find(sk => sk.id === sid);
                 return s ? `<span class="tag">${s.icon} ${s.label} &times;${teamSkills[i][sid]}</span>` : '';
-              }).join('')}
-              ${[...allRooms].map(rid => {
-                const r = ROOMS.find(rm => rm.id === rid);
-                return r ? `<span class="tag room-tag">${r.icon} ${r.label} &times;${teamRooms[i][rid]}</span>` : '';
               }).join('')}
             </div>
           </div>
