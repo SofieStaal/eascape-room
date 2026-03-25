@@ -393,6 +393,7 @@
 
       <label class="field-label" style="margin-top:20px;">Have you done any of these rooms before?</label>
       <div class="skills-grid" id="rooms-grid"></div>
+      <button class="btn btn-secondary" id="none-rooms-btn" style="margin-top:10px; padding:10px 20px; font-size:0.9rem;">None of the rooms</button>
 
       <div class="btn-row">
         <button class="btn btn-primary" id="add-btn" disabled>Add me</button>
@@ -605,6 +606,11 @@
           selectedRooms.add(rid);
           chip.classList.add('selected', 'room-chip');
         }
+      });
+
+      document.getElementById('none-rooms-btn').addEventListener('click', () => {
+        selectedRooms.clear();
+        document.querySelectorAll('#rooms-grid .skill-chip.selected').forEach(c => c.classList.remove('selected', 'room-chip'));
       });
 
       document.getElementById('active-rooms-grid').addEventListener('click', e => {
