@@ -412,6 +412,9 @@
       <h2>Your Teams</h2>
       <hr class="section-divider">
       <div class="teams-grid" id="teams-grid"></div>
+      <div class="btn-row" style="margin-top:24px;">
+        <button class="btn btn-secondary" id="copy-slack-btn" style="display:none;">Copy for Slack</button>
+      </div>
     </div>
   </div>
 
@@ -644,6 +647,8 @@
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeReveal();
       });
+
+      document.getElementById('copy-slack-btn').addEventListener('click', copyForSlack);
     }
 
     function updateAddBtn() {
@@ -796,13 +801,17 @@
     // =====================
     // STATIC TEAMS RENDER
     // =====================
+    let lastResult = null;
+
     function renderTeamsStatic(teams, teamSkills, roomList, conflicts) {
+      lastResult = { teams, roomList, conflicts };
       const card = document.getElementById('teams-card');
       const grid = document.getElementById('teams-grid');
       const warning = document.getElementById('room-warning');
 
       card.style.display = '';
       document.getElementById('shuffle-btn').style.display = '';
+      document.getElementById('copy-slack-btn').style.display = '';
 
       if (conflicts.length > 0) {
         warning.textContent = `${conflicts.join(', ')} har gjort alle valgte rom — plassert i minste lag.`;
@@ -852,6 +861,38 @@
     function hideTeams() {
       document.getElementById('teams-card').style.display = 'none';
       document.getElementById('shuffle-btn').style.display = 'none';
+      document.getElementById('copy-slack-btn').style.display = 'none';
+    }
+
+    function copyForSlack() {
+      if (!lastResult) return;
+      const { teams, roomList, conflicts } = lastResult;
+
+      let text = '🔐 *Escape Room Teams*\n\n';
+
+      teams.forEach((team, i) => {
+        const room = ROOMS.find(r => r.id === roomList[i]);
+        text += `${room.icon} *${room.label}*\n`;
+        team.forEach(p => {
+          const hasConflict = (p.visitedRooms || []).includes(roomList[i]);
+          text += `    •  ${p.name}`;
+          if (hasConflict) text += '  ⚠️ has done this room';
+          text += '\n';
+        });
+        text += '\n';
+      });
+
+      if (conflicts.length > 0) {
+        text += `⚠️ _${conflicts.join(', ')} har gjort alle valgte rom — plassert i minste lag._\n`;
+      }
+
+      text += '🎯 Good luck and have fun!';
+
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-slack-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy for Slack'; }, 2000);
+      });
     }
 
     // =====================
