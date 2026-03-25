@@ -122,6 +122,11 @@
       background: rgba(139, 92, 246, 0.1);
     }
 
+    .room-chip.selected {
+      border-color: #f472b6;
+      background: rgba(244, 114, 182, 0.1);
+    }
+
     .skill-chip .icon {
       font-size: 1.3rem;
       width: 28px;
@@ -224,6 +229,11 @@
       background: rgba(139, 92, 246, 0.12);
       color: #c4b5fd;
       white-space: nowrap;
+    }
+
+    .tag.room-tag {
+      background: rgba(244, 114, 182, 0.12);
+      color: #f9a8d4;
     }
 
     .remove-btn {
@@ -381,6 +391,9 @@
       <label class="field-label" style="margin-top:20px;">Select your skills</label>
       <div class="skills-grid" id="skills-grid"></div>
 
+      <label class="field-label" style="margin-top:20px;">Have you done any of these rooms before?</label>
+      <div class="skills-grid" id="rooms-grid"></div>
+
       <div class="btn-row">
         <button class="btn btn-primary" id="add-btn" disabled>Add me</button>
       </div>
@@ -452,14 +465,24 @@
       { id: 'memory',        icon: '🧠', label: 'Good Memory' },
     ];
 
+    const ROOMS = [
+      { id: 'ville_vest', icon: '🤠', label: 'Ville Vest' },
+      { id: 'ondskap',    icon: '😈', label: 'Ondskap' },
+      { id: 'ubaat',      icon: '🚢', label: 'Ubåt' },
+      { id: 'isriket',    icon: '❄️', label: 'Isriket' },
+      { id: 'gudfaren',   icon: '🎩', label: 'Gudfaren' },
+    ];
+
     const TEAM_COLORS = ['#8b5cf6','#f472b6','#34d399','#fbbf24','#60a5fa','#fb923c','#e879f9','#2dd4bf','#f87171','#a3e635'];
 
     let participants = [];
     let selectedSkills = new Set();
+    let selectedRooms = new Set();
 
     // --- Init ---
     async function init() {
       renderSkills();
+      renderRooms();
       bindEvents();
       await loadParticipants();
     }
@@ -467,7 +490,7 @@
     async function loadParticipants() {
       try {
         const data = await supaFetch('participants?select=*&order=created_at.asc');
-        participants = data.map(row => ({ id: row.id, name: row.name, skills: row.skills }));
+        participants = data.map(row => ({ id: row.id, name: row.name, skills: row.skills, visitedRooms: row.visited_rooms || [] }));
       } catch (e) {
         console.error('Failed to load participants:', e);
         participants = [];
@@ -482,6 +505,16 @@
         <div class="skill-chip" data-skill="${s.id}">
           <span class="icon">${s.icon}</span>
           <span class="label">${s.label}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderRooms() {
+      const grid = document.getElementById('rooms-grid');
+      grid.innerHTML = ROOMS.map(r => `
+        <div class="skill-chip" data-room="${r.id}">
+          <span class="icon">${r.icon}</span>
+          <span class="label">${r.label}</span>
         </div>
       `).join('');
     }
@@ -513,6 +546,10 @@
               ${p.skills.map(sid => {
                 const s = SKILLS.find(sk => sk.id === sid);
                 return s ? `<span class="tag">${s.icon} ${s.label}</span>` : '';
+              }).join('')}
+              ${p.visitedRooms.map(rid => {
+                const r = ROOMS.find(rm => rm.id === rid);
+                return r ? `<span class="tag room-tag">${r.icon} ${r.label}</span>` : '';
               }).join('')}
             </div>
           </div>
@@ -546,7 +583,7 @@
 
       grid.addEventListener('click', e => {
         const chip = e.target.closest('.skill-chip');
-        if (!chip) return;
+        if (!chip || chip.dataset.room) return;
         const sid = chip.dataset.skill;
         if (selectedSkills.has(sid)) {
           selectedSkills.delete(sid);
@@ -556,6 +593,19 @@
           chip.classList.add('selected');
         }
         updateAddBtn();
+      });
+
+      document.getElementById('rooms-grid').addEventListener('click', e => {
+        const chip = e.target.closest('.skill-chip');
+        if (!chip) return;
+        const rid = chip.dataset.room;
+        if (selectedRooms.has(rid)) {
+          selectedRooms.delete(rid);
+          chip.classList.remove('selected', 'room-chip');
+        } else {
+          selectedRooms.add(rid);
+          chip.classList.add('selected', 'room-chip');
+        }
       });
 
       nameInput.addEventListener('input', updateAddBtn);
@@ -617,12 +667,13 @@
 
       try {
         const skills = [...selectedSkills];
+        const visited_rooms = [...selectedRooms];
         const rows = await supaFetch('participants', {
           method: 'POST',
           prefer: 'return=representation',
-          body: { name, skills },
+          body: { name, skills, visited_rooms },
         });
-        participants.push({ id: rows[0].id, name, skills });
+        participants.push({ id: rows[0].id, name, skills, visitedRooms: visited_rooms });
       } catch (e) {
         console.error('Failed to add:', e);
         alert('Failed to sign up. Please try again.');
@@ -631,7 +682,8 @@
       // Reset form
       nameInput.value = '';
       selectedSkills.clear();
-      document.querySelectorAll('.skill-chip.selected').forEach(c => c.classList.remove('selected'));
+      selectedRooms.clear();
+      document.querySelectorAll('.skill-chip.selected').forEach(c => c.classList.remove('selected', 'room-chip'));
       addBtn.textContent = 'Add me';
       updateAddBtn();
       nameInput.focus();
@@ -651,8 +703,9 @@
       // Sort by most skills first (greedy balancing)
       shuffled.sort((a, b) => b.skills.length - a.skills.length);
 
-      // Track skill counts per team
+      // Track skill counts and room experience per team
       const teamSkills = Array.from({ length: numTeams }, () => ({}));
+      const teamRooms = Array.from({ length: numTeams }, () => ({}));
 
       for (const person of shuffled) {
         let bestTeam = 0;
@@ -660,12 +713,21 @@
 
         for (let t = 0; t < numTeams; t++) {
           const sizePenalty = teams[t].length * 3;
+
           let skillBonus = 0;
           for (const s of person.skills) {
             if (!teamSkills[t][s]) skillBonus += 2;
             else skillBonus -= 0.5;
           }
-          const score = skillBonus - sizePenalty;
+
+          // Bonus for room experience this team lacks
+          let roomBonus = 0;
+          for (const r of (person.visitedRooms || [])) {
+            if (!teamRooms[t][r]) roomBonus += 3;
+            else roomBonus -= 0.5;
+          }
+
+          const score = skillBonus + roomBonus - sizePenalty;
           if (score > bestScore) {
             bestScore = score;
             bestTeam = t;
@@ -676,12 +738,15 @@
         for (const s of person.skills) {
           teamSkills[bestTeam][s] = (teamSkills[bestTeam][s] || 0) + 1;
         }
+        for (const r of (person.visitedRooms || [])) {
+          teamRooms[bestTeam][r] = (teamRooms[bestTeam][r] || 0) + 1;
+        }
       }
 
-      renderTeams(teams, teamSkills);
+      renderTeams(teams, teamSkills, teamRooms);
     }
 
-    function renderTeams(teams, teamSkills) {
+    function renderTeams(teams, teamSkills, teamRooms) {
       const card = document.getElementById('teams-card');
       const grid = document.getElementById('teams-grid');
 
@@ -692,6 +757,8 @@
         const color = TEAM_COLORS[i % TEAM_COLORS.length];
         const allSkills = new Set();
         team.forEach(p => p.skills.forEach(s => allSkills.add(s)));
+        const allRooms = new Set();
+        team.forEach(p => (p.visitedRooms || []).forEach(r => allRooms.add(r)));
 
         return `
           <div class="team-card" style="border-color: ${color}33;">
@@ -707,6 +774,10 @@
                       const s = SKILLS.find(sk => sk.id === sid);
                       return s ? `<span class="tag">${s.icon} ${s.label}</span>` : '';
                     }).join('')}
+                    ${(p.visitedRooms || []).map(rid => {
+                      const r = ROOMS.find(rm => rm.id === rid);
+                      return r ? `<span class="tag room-tag">${r.icon} ${r.label}</span>` : '';
+                    }).join('')}
                   </div>
                 </div>
               `).join('')}
@@ -716,6 +787,10 @@
               ${[...allSkills].map(sid => {
                 const s = SKILLS.find(sk => sk.id === sid);
                 return s ? `<span class="tag">${s.icon} ${s.label} &times;${teamSkills[i][sid]}</span>` : '';
+              }).join('')}
+              ${[...allRooms].map(rid => {
+                const r = ROOMS.find(rm => rm.id === rid);
+                return r ? `<span class="tag room-tag">${r.icon} ${r.label} &times;${teamRooms[i][rid]}</span>` : '';
               }).join('')}
             </div>
           </div>
