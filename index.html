@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escape Room Team Builder</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0d0d0d;
+      color: #e8e8e8;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .bg-glow {
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.15), transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    header h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a78bfa, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: #888;
+      font-size: 1.05rem;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .card h2 {
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      color: #c4b5fd;
+    }
+
+    label.field-label {
+      display: block;
+      font-size: 0.85rem;
+      color: #999;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 12px 16px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 10px;
+      color: #e8e8e8;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: #8b5cf6;
+    }
+
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .skill-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+
+    .skill-chip:hover {
+      border-color: #444;
+    }
+
+    .skill-chip.selected {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    .skill-chip .icon {
+      font-size: 1.3rem;
+      width: 28px;
+      text-align: center;
+    }
+
+    .skill-chip .label {
+      font-size: 0.9rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: #222;
+      color: #ccc;
+      border: 1px solid #333;
+    }
+
+    .btn-secondary:hover {
+      background: #2a2a2a;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .participants-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .participant-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #111;
+      border-radius: 10px;
+      border: 1px solid #2a2a2a;
+    }
+
+    .participant-row .name {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .participant-row .skills-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: rgba(139, 92, 246, 0.12);
+      color: #c4b5fd;
+      white-space: nowrap;
+    }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .remove-btn:hover {
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #555;
+      padding: 30px;
+      font-size: 0.95rem;
+    }
+
+    .team-count-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .team-count-row input {
+      width: 80px;
+    }
+
+    .team-count-row span {
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    /* Teams display */
+    .teams-grid {
+      display: grid;
+      gap: 20px;
+      margin-top: 16px;
+    }
+
+    @media (min-width: 600px) {
+      .teams-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .team-card {
+      background: #111;
+      border-radius: 14px;
+      border: 1px solid #2a2a2a;
+      overflow: hidden;
+    }
+
+    .team-header {
+      padding: 16px 20px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    .team-members {
+      padding: 12px 16px;
+    }
+
+    .team-member {
+      padding: 10px 4px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .team-member:last-child {
+      border-bottom: none;
+    }
+
+    .team-member .name {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .team-member .skills-tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .team-colors {
+      --team-1: #8b5cf6;
+      --team-2: #f472b6;
+      --team-3: #34d399;
+      --team-4: #fbbf24;
+      --team-5: #60a5fa;
+      --team-6: #fb923c;
+    }
+
+    .team-skill-summary {
+      padding: 12px 20px;
+      border-top: 1px solid #1a1a1a;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .team-skill-summary .tag {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+
+    .section-divider {
+      border: none;
+      border-top: 1px solid #222;
+      margin: 8px 0 20px;
+    }
+
+    .count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(139, 92, 246, 0.15);
+      color: #a78bfa;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 20px;
+      margin-left: 8px;
+    }
+
+    @media (max-width: 500px) {
+      .container { padding: 20px 14px; }
+      header h1 { font-size: 1.8rem; }
+      .card { padding: 20px; }
+      .skills-grid { grid-template-columns: 1fr; }
+      .participant-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div class="container">
+    <header>
+      <h1>Escape Room Team Builder</h1>
+      <p>Sign up, pick your skills, and get sorted into balanced teams</p>
+    </header>
+
+    <!-- Sign-up form -->
+    <div class="card" id="signup-card">
+      <h2>Sign Up</h2>
+      <label class="field-label" for="name-input">Your name</label>
+      <input type="text" id="name-input" placeholder="Enter your name..." autocomplete="off">
+
+      <label class="field-label" style="margin-top:20px;">Select your skills</label>
+      <div class="skills-grid" id="skills-grid"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="add-btn" disabled>Add me</button>
+      </div>
+    </div>
+
+    <!-- Participants list -->
+    <div class="card" id="participants-card">
+      <h2>Participants <span class="count-badge" id="count-badge">0</span></h2>
+      <hr class="section-divider">
+      <div id="participants-list" class="participants-list">
+        <div class="empty-state">No one has signed up yet</div>
+      </div>
+
+      <div class="team-count-row">
+        <label class="field-label" for="team-count" style="margin:0;">Teams</label>
+        <input type="number" id="team-count" value="2" min="2" max="10">
+        <span id="team-size-hint"></span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="generate-btn" disabled>Generate teams</button>
+        <button class="btn btn-secondary" id="shuffle-btn" style="display:none;">Shuffle again</button>
+        <button class="btn btn-danger" id="clear-btn" style="display:none;">Clear all</button>
+      </div>
+    </div>
+
+    <!-- Teams result -->
+    <div class="card" id="teams-card" style="display:none;">
+      <h2>Your Teams</h2>
+      <hr class="section-divider">
+      <div class="teams-grid team-colors" id="teams-grid"></div>
+    </div>
+  </div>
+
+  <script>
+    // --- Supabase config ---
+    const SUPABASE_URL = 'https://cnngzdjezmxlurycjhco.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNubmd6ZGplem14bHVyeWNqaGNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0MzIxNjYsImV4cCI6MjA5MDAwODE2Nn0.cZznCuhKfEXPDTlPiJRHUhlz8hWXKZrw5iCUo-II6UM';
+
+    async function supaFetch(path, options = {}) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': options.prefer || '',
+          ...options.headers,
+        },
+        method: options.method || 'GET',
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      if (!res.ok) throw new Error(`Supabase error: ${res.status}`);
+      const text = await res.text();
+      return text ? JSON.parse(text) : null;
+    }
+
+    const SKILLS = [
+      { id: 'puzzles',       icon: '🧩', label: 'Puzzles & Riddles' },
+      { id: 'patterns',      icon: '🔍', label: 'Pattern Recognition' },
+      { id: 'leader',        icon: '🎯', label: 'Leadership' },
+      { id: 'communication', icon: '🗣️', label: 'Communication' },
+      { id: 'search',        icon: '👀', label: 'Searching & Finding' },
+      { id: 'tech',          icon: '⚙️', label: 'Tech & Gadgets' },
+      { id: 'creative',      icon: '💡', label: 'Creative Thinking' },
+      { id: 'calm',          icon: '🧘', label: 'Calm Under Pressure' },
+      { id: 'math',          icon: '🔢', label: 'Math & Logic' },
+      { id: 'teamwork',      icon: '🤝', label: 'Team Player' },
+      { id: 'physical',      icon: '💪', label: 'Physical Challenges' },
+      { id: 'memory',        icon: '🧠', label: 'Good Memory' },
+    ];
+
+    const TEAM_COLORS = ['#8b5cf6','#f472b6','#34d399','#fbbf24','#60a5fa','#fb923c','#e879f9','#2dd4bf','#f87171','#a3e635'];
+
+    let participants = [];
+    let selectedSkills = new Set();
+
+    // --- Init ---
+    async function init() {
+      renderSkills();
+      bindEvents();
+      await loadParticipants();
+    }
+
+    async function loadParticipants() {
+      try {
+        const data = await supaFetch('participants?select=*&order=created_at.asc');
+        participants = data.map(row => ({ id: row.id, name: row.name, skills: row.skills }));
+      } catch (e) {
+        console.error('Failed to load participants:', e);
+        participants = [];
+      }
+      renderParticipants();
+    }
+
+    // --- Skills grid ---
+    function renderSkills() {
+      const grid = document.getElementById('skills-grid');
+      grid.innerHTML = SKILLS.map(s => `
+        <div class="skill-chip" data-skill="${s.id}">
+          <span class="icon">${s.icon}</span>
+          <span class="label">${s.label}</span>
+        </div>
+      `).join('');
+    }
+
+    // --- Participants ---
+    function renderParticipants() {
+      const list = document.getElementById('participants-list');
+      const badge = document.getElementById('count-badge');
+      const genBtn = document.getElementById('generate-btn');
+      const clearBtn = document.getElementById('clear-btn');
+
+      badge.textContent = participants.length;
+
+      if (participants.length === 0) {
+        list.innerHTML = '<div class="empty-state">No one has signed up yet</div>';
+        genBtn.disabled = true;
+        clearBtn.style.display = 'none';
+        return;
+      }
+
+      clearBtn.style.display = '';
+      genBtn.disabled = participants.length < 2;
+
+      list.innerHTML = participants.map((p) => `
+        <div class="participant-row">
+          <div>
+            <div class="name">${esc(p.name)}</div>
+            <div class="skills-tags">
+              ${p.skills.map(sid => {
+                const s = SKILLS.find(sk => sk.id === sid);
+                return s ? `<span class="tag">${s.icon} ${s.label}</span>` : '';
+              }).join('')}
+            </div>
+          </div>
+          <button class="remove-btn" data-id="${p.id}" title="Remove">&times;</button>
+        </div>
+      `).join('');
+
+      updateTeamHint();
+    }
+
+    function updateTeamHint() {
+      const n = participants.length;
+      const t = parseInt(document.getElementById('team-count').value) || 2;
+      const hint = document.getElementById('team-size-hint');
+      if (n > 0) {
+        const base = Math.floor(n / t);
+        const extra = n % t;
+        hint.textContent = extra === 0
+          ? `(${base} per team)`
+          : `(${base}–${base + 1} per team)`;
+      } else {
+        hint.textContent = '';
+      }
+    }
+
+    // --- Events ---
+    function bindEvents() {
+      const grid = document.getElementById('skills-grid');
+      const nameInput = document.getElementById('name-input');
+      const addBtn = document.getElementById('add-btn');
+
+      grid.addEventListener('click', e => {
+        const chip = e.target.closest('.skill-chip');
+        if (!chip) return;
+        const sid = chip.dataset.skill;
+        if (selectedSkills.has(sid)) {
+          selectedSkills.delete(sid);
+          chip.classList.remove('selected');
+        } else {
+          selectedSkills.add(sid);
+          chip.classList.add('selected');
+        }
+        updateAddBtn();
+      });
+
+      nameInput.addEventListener('input', updateAddBtn);
+      nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !addBtn.disabled) addParticipant();
+      });
+
+      addBtn.addEventListener('click', addParticipant);
+
+      document.getElementById('participants-list').addEventListener('click', async e => {
+        const btn = e.target.closest('.remove-btn');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        try {
+          await supaFetch(`participants?id=eq.${id}`, { method: 'DELETE' });
+          participants = participants.filter(p => p.id !== id);
+          renderParticipants();
+          hideTeams();
+        } catch (e) {
+          console.error('Failed to remove:', e);
+        }
+      });
+
+      document.getElementById('generate-btn').addEventListener('click', generateTeams);
+      document.getElementById('shuffle-btn').addEventListener('click', generateTeams);
+      document.getElementById('clear-btn').addEventListener('click', async () => {
+        if (confirm('Remove all participants?')) {
+          try {
+            // Delete all rows
+            await supaFetch('participants?id=not.is.null', { method: 'DELETE' });
+            participants = [];
+            renderParticipants();
+            hideTeams();
+          } catch (e) {
+            console.error('Failed to clear:', e);
+          }
+        }
+      });
+
+      document.getElementById('team-count').addEventListener('input', () => {
+        updateTeamHint();
+        hideTeams();
+      });
+    }
+
+    function updateAddBtn() {
+      const name = document.getElementById('name-input').value.trim();
+      document.getElementById('add-btn').disabled = !name || selectedSkills.size === 0;
+    }
+
+    async function addParticipant() {
+      const nameInput = document.getElementById('name-input');
+      const addBtn = document.getElementById('add-btn');
+      const name = nameInput.value.trim();
+      if (!name || selectedSkills.size === 0) return;
+
+      addBtn.disabled = true;
+      addBtn.textContent = 'Adding...';
+
+      try {
+        const skills = [...selectedSkills];
+        const rows = await supaFetch('participants', {
+          method: 'POST',
+          prefer: 'return=representation',
+          body: { name, skills },
+        });
+        participants.push({ id: rows[0].id, name, skills });
+      } catch (e) {
+        console.error('Failed to add:', e);
+        alert('Failed to sign up. Please try again.');
+      }
+
+      // Reset form
+      nameInput.value = '';
+      selectedSkills.clear();
+      document.querySelectorAll('.skill-chip.selected').forEach(c => c.classList.remove('selected'));
+      addBtn.textContent = 'Add me';
+      updateAddBtn();
+      nameInput.focus();
+
+      renderParticipants();
+      hideTeams();
+    }
+
+    // --- Team generation ---
+    function generateTeams() {
+      const numTeams = Math.max(2, Math.min(10, parseInt(document.getElementById('team-count').value) || 2));
+      const teams = Array.from({ length: numTeams }, () => []);
+
+      // Shuffle participants
+      const shuffled = [...participants].sort(() => Math.random() - 0.5);
+
+      // Sort by most skills first (greedy balancing)
+      shuffled.sort((a, b) => b.skills.length - a.skills.length);
+
+      // Track skill counts per team
+      const teamSkills = Array.from({ length: numTeams }, () => ({}));
+
+      for (const person of shuffled) {
+        let bestTeam = 0;
+        let bestScore = -Infinity;
+
+        for (let t = 0; t < numTeams; t++) {
+          const sizePenalty = teams[t].length * 3;
+          let skillBonus = 0;
+          for (const s of person.skills) {
+            if (!teamSkills[t][s]) skillBonus += 2;
+            else skillBonus -= 0.5;
+          }
+          const score = skillBonus - sizePenalty;
+          if (score > bestScore) {
+            bestScore = score;
+            bestTeam = t;
+          }
+        }
+
+        teams[bestTeam].push(person);
+        for (const s of person.skills) {
+          teamSkills[bestTeam][s] = (teamSkills[bestTeam][s] || 0) + 1;
+        }
+      }
+
+      renderTeams(teams, teamSkills);
+    }
+
+    function renderTeams(teams, teamSkills) {
+      const card = document.getElementById('teams-card');
+      const grid = document.getElementById('teams-grid');
+
+      card.style.display = '';
+      document.getElementById('shuffle-btn').style.display = '';
+
+      grid.innerHTML = teams.map((team, i) => {
+        const color = TEAM_COLORS[i % TEAM_COLORS.length];
+        const allSkills = new Set();
+        team.forEach(p => p.skills.forEach(s => allSkills.add(s)));
+
+        return `
+          <div class="team-card" style="border-color: ${color}33;">
+            <div class="team-header" style="background: ${color}15; color: ${color};">
+              Team ${i + 1} <span style="font-weight:400; font-size:0.85rem; opacity:0.7;">(${team.length})</span>
+            </div>
+            <div class="team-members">
+              ${team.map(p => `
+                <div class="team-member">
+                  <div class="name">${esc(p.name)}</div>
+                  <div class="skills-tags">
+                    ${p.skills.map(sid => {
+                      const s = SKILLS.find(sk => sk.id === sid);
+                      return s ? `<span class="tag">${s.icon} ${s.label}</span>` : '';
+                    }).join('')}
+                  </div>
+                </div>
+              `).join('')}
+              ${team.length === 0 ? '<div class="empty-state" style="padding:16px 0;">Empty</div>' : ''}
+            </div>
+            <div class="team-skill-summary">
+              ${[...allSkills].map(sid => {
+                const s = SKILLS.find(sk => sk.id === sid);
+                return s ? `<span class="tag">${s.icon} ${s.label} &times;${teamSkills[i][sid]}</span>` : '';
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function hideTeams() {
+      document.getElementById('teams-card').style.display = 'none';
+      document.getElementById('shuffle-btn').style.display = 'none';
+    }
+
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>
